@@ -9,16 +9,33 @@ import re
 import os
 import json
 from bs4 import BeautifulSoup
-try:
-    from urllib import urlretrieve
-except:
-    from urllib.request import urlretrieve
-
+import urllib2
 
 class Session:
     headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:18.0) Gecko/20100101 Firefox/18.0',
                'X-Requested-With': 'XMLHttpRequest',
                'Referer': '	http://www.udemy.com/'}
+
+    def __init__(self):
+        self.session = requests.Session()
+#!/usr/bin/env python
+# -*- coding: utf8 -*-
+
+import requests
+import argparse
+import getpass
+import sys
+import re
+import os
+import json
+from bs4 import BeautifulSoup
+import urllib2
+
+
+class Session:
+    headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:18.0) Gecko/20100101 Firefox/18.0',
+               'X-Requested-With': 'XMLHttpRequest',
+               'Referer': ' http://www.udemy.com/'}
 
     def __init__(self):
         self.session = requests.Session()
@@ -112,19 +129,64 @@ def mkdir(directory):
         os.makedirs(directory)
 
 
-def dl_progress(num_blocks, block_size, total_size):
-    progress = num_blocks * block_size * 100 / total_size
-    if num_blocks != 0:
+def dl_progress(bytes_so_far, total_size):
+    progress = bytes_so_far * 100 / total_size
+    if bytes_so_far != 0:
         sys.stdout.write(4 * '\b')
     sys.stdout.write('%3d%%' % (progress))
 
 
-def get_video(directory, filename, link):
+def down_url(link, filename,proxy=None):
+    opener = None
+    if proxy is not None:
+        proxy = urllib2.ProxyHandler({'http': proxy})
+        opener = urllib2.build_opener(proxy)
+        urllib2.install_opener(opener)
+    else:
+        opener = urllib2.build_opener();
+
+    response = opener.open(link)
+    filesize = float(response.info()['Content-Length'])
+
+    count = 0
+    bytes_so_far = 0
+    chunk_size = 8192
+    chunk = None
+
+    if (os.path.exists(filename) and os.path.isfile(filename)):
+        count = os.path.getsize(filename)
+
+#    print "Current File Size: " + str(count)
+#    print "Network File Size: " + str(filesize)
+    response.close()
+    if count >= filesize:
+        return
+
+    req = urllib2.Request(link)
+    req.add_header("Range","bytes=%s-" % (count))
+    response = opener.open(req)
+    outfile = open(filename,"ab")
+
+    dl_progress(bytes_so_far, filesize)
+    while 1:
+        try:
+            chunk = self.response.read(chunk_size)
+        except:
+            chunk = None
+
+        if not chunk:
+            break
+
+        bytes_so_far += len(chunk)
+        outfile.write(chunk)
+        dl_progress(bytes_so_far, filesize)
+
+def get_video(directory, filename, link, proxy):
     print('Downloading %s  ' % (filename)),
     mkdir(directory)
     os.chdir(directory)
-    if not os.path.exists(filename):
-        urlretrieve(link, filename, reporthook=dl_progress)
+    #if not os.path.exists(filename):
+    down_url(link, filename, proxy)
     os.chdir('..')
     print()
 
@@ -141,7 +203,7 @@ def udemy_dl(username, password, course_link):
         directory = sanitize_path(directory)
         filename = sanitize_path(filename)
 
-        get_video(directory, filename, video['video_url'])
+        get_video(directory, filename, video['video_url'], None)
 
     session.get('http://www.udemy.com/user/logout')
 
